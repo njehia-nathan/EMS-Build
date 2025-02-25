@@ -9,6 +9,8 @@ import { Button } from "./ui/button";
 import Spinner from "./Spinner";
 import { Clock, OctagonXIcon } from "lucide-react";
 import { WAITING_LIST_STATUS } from "@/convex/constants";
+import { PurchaseTicket } from "./PurchaseTicket";
+import { useRouter } from "next/router";
 
 interface JoinQueueProps {
     eventId: Id<"events">;
@@ -27,14 +29,21 @@ function JoinQueue({ eventId, userId }: JoinQueueProps) {
     })
     const availability = useQuery(api.events.getEventAvailability, { eventId });
     const event = useQuery(api.events.getById, { eventId });
+    const router = useRouter();
 
     const isEventOwner = userId === event?.userId;
 
     const handleJoinQueue = async () => {
         try {
             const result = await joinWaitingList({ eventId, userId });
-            if (result.success) {
+            if (result && result.success) {
                 console.log("Successfully joined waiting list");
+                if (result.message) {
+                    toast.success("Success!", {
+                        description: result.message,
+                        duration: 5000,
+                    });
+                }
             }
         } catch (error) {
             if (
@@ -54,7 +63,7 @@ function JoinQueue({ eventId, userId }: JoinQueueProps) {
         }
     };
 
-    if (queuePosition === undefined || availability === undefined || !event) {
+    if (!event || !availability) {
         return <Spinner />;
     }
 
