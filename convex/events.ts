@@ -80,75 +80,82 @@ export const get = query({
             (t) =>
               t.status === TICKET_STATUS.VALID ||
               t.status === TICKET_STATUS.USED
-            ).length
+          ).length
       );
 
-      //Count current valid offers
-      const now = Date.now();
-      const activeOffers = await ctx.db
+    const now = Date.now();
+    const activeOffers = await ctx.db
       .query("waitingList")
       .withIndex("by_event_status", (q) =>
         q.eq("eventId", eventId).eq("status", WAITING_LIST_STATUS.OFFERED)
       )
       .collect()
       .then(
-        (entries) => entries.filter((e) => (e.offerExpiresAt ?? 0) > now).length
+        (entries) =>
+          entries.filter((e) => (e.offerExpiresAt ?? 0) > now).length
       );
 
       const availableSpots = event.totalTickets - (purchasedCount + activeOffers);
 
       return {
-        available: availableSpots > 0,
-        availableSpots,
-        totalTickets: event.totalTickets,
+        available: event.totalTickets > (purchasedCount + activeOffers),
         purchasedCount,
+        totalTickets: event.totalTickets,
         activeOffers,
-      }
-    }
-  })
+      };
+    },
+  });
 
-  // Join waiting list for an event
   export const joinWaitingList = mutation({
-    // Function takes an event ID and user ID as arguments
     args: { eventId: v.id("events"), userId: v.string() },
     handler: async (ctx, { eventId, userId }) => {
-    // Rate Limit check
-    //const status = await rateLimiter.limit(ctx, "queueJoin", { key: userId});
-    //if (!status.ok) {
-      //throw new ConvexError(
-        //`You've joined the waiting list too many times. Please wait ${Math.ceil(
-  //        status.retryAfter / (60 * 1000)
-    //    )} minutes before trying again.`
-      //)
-     //}
+      const existingEntry = await ctx.db
+        .query("waitingList")
+        .withIndex("by_user_event", (q) =>
+          q.eq("userId", userId).eq("eventId", eventId)
+        )
+        .filter((q) => q.neq(q.field("status"), WAITING_LIST_STATUS.EXPIRED))
+        .first();
 
-     // First check if user already has an active entry in waiting list for this event
-     // Active means any status except Expired
-     const exisitingEntry = await ctx.db
-     .query("waitingList")
-     .withIndex("by_user_event", (q) =>
-        q.eq("userId", userId).eq("eventId", eventId)
-     )
-     .filter((q) => q.neq(q.field("status"), WAITING_LIST_STATUS.EXPIRED))
-     .first();
+      // dont allow duplicate entries
+      if (existingEntry) {
+        throw new Error("Already in waiting list");
+      }
 
-     // Don't allow duplicate entries
-     if (exisitingEntry) {
-       throw new ConvexError(
-         "You already have an active entry in the waiting list for this event."
-       );
-     }
-
-     // Verify the event exists
-     const event = await ctx.db.get(eventId);
-     if (!event) throw new ConvexError("Event not found");
-     
-      //Check if there are any available tickets
-      const { available } = await checkAvailability(ctx, { eventId });
-
+      // verify the event is still active
+      const event = await ctx.db.get(eventId);
+      if (!event) {
+        throw new Error("Event not found");
+      }
+      
+      //check if there are any available tickets
       const now = Date.now();
+      const purchasedCount = await ctx.db
+        .query("tickets")
+        .withIndex("by_event", (q) => q.eq("eventId", eventId))
+        .collect()
+        .then(
+          (tickets) =>
+            tickets.filter(
+              (t) =>
+                t.status === TICKET_STATUS.VALID ||
+                t.status === TICKET_STATUS.USED
+              ).length
+        );
 
-      if (!available) {
+      const activeOffers = await ctx.db
+        .query("waitingList")
+        .withIndex("by_event_status", (q) =>
+          q.eq("eventId", eventId).eq("status", WAITING_LIST_STATUS.OFFERED)
+        )
+        .collect()
+        .then(
+          (entries) => entries.filter((e) => (e.offerExpiresAt ?? 0) > now).length
+        );
+
+      const available = event.totalTickets > (purchasedCount + activeOffers);
+
+      if (available) {
         // If tickets are available, create an offer entry
         const waitingListId = await ctx.db.insert("waitingList", {
           eventId,
@@ -157,7 +164,7 @@ export const get = query({
           offerExpiresAt: now + DURATIONS.TICKET_OFFER,
         });
 
-        //Schedule a job to expire this offer after the offer duration
+        // Schedule a job to expire this offer after the offer duration
         await ctx.scheduler.runAfter(
           DURATIONS.TICKET_OFFER,
           internal.waitingList.expireOffer,
@@ -166,24 +173,25 @@ export const get = query({
             eventId,
           }
         );
-      } else{
+
+        return {
+          success: true,
+          status: WAITING_LIST_STATUS.OFFERED,
+          message: `You have been offered a ticket to the event - you have ${DURATIONS.TICKET_OFFER / (60 * 1000)} minutes to purchase it.`
+        };
+      } else {
         // If no tickets are available, add to waiting list
         await ctx.db.insert("waitingList", {
           eventId,
           userId,
-          status: WAITING_LIST_STATUS.WAITING,// Mark as waiting
-        })
-      }
+          status: WAITING_LIST_STATUS.WAITING,
+        });
 
-      return{
-        success: true,
-        status: available
-          ? WAITING_LIST_STATUS.OFFERED // iF Available, status is offered
-          : WAITING_LIST_STATUS.WAITING, // Otherwise, status is waiting
-        message: available
-          ? `You have been offered a ticket to the event - you have ${DURATIONS.TICKET_OFFER / (60 * 1000)} minutes to purchase it.`
-          : "You have been added to the waiting list - you will be notified when tickets become available.",
+        return {
+          success: true,
+          status: WAITING_LIST_STATUS.WAITING,
+          message: "You have been added to the waiting list - you will be notified when tickets become available."
+        };
       }
-     
     },
   });

@@ -5,7 +5,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { ConvexClientProvider } from "@/components/ConvexClientProvider";
 import Header from "@/components/Header";
 import SyncUserWithConvex from "@/components/SyncUserWithConvex";
-import { Toaster } from "sonner";
+import { Toaster } from "sonner"; // ✅ Import Sonner's Toaster
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,16 +29,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <ConvexClientProvider>
-        <ClerkProvider>
-          <Header />
-          <SyncUserWithConvex />
-          {children}
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        {/* ✅ Ensure Sonner is initialized globally */}
+        <Toaster richColors position="top-right" />  
 
-          <Toaster />
+        <ConvexClientProvider>
+          <ClerkProvider>
+            <Header />
+            <SyncUserWithConvex />
+            {children}
           </ClerkProvider>
         </ConvexClientProvider>
       </body>
