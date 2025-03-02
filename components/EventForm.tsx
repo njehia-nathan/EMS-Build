@@ -25,7 +25,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner"; // ✅ Use Sonner for notifications
 import { useStorageUrl } from "@/lib/utils";
 
-// ✅ Define Form Schema
+// Form Schema
 const formSchema = z.object({
   name: z.string().min(1, "Event name is required"),
   description: z.string().min(1, "Description is required"),
@@ -40,7 +40,7 @@ const formSchema = z.object({
 type FormData = z.infer<typeof formSchema>;
 
 interface InitialEventData {
-  eventId: Id<"events">; // ✅ Changed from `_id` to `eventId`
+  _id: Id<"events">;
   name: string;
   description: string;
   location: string;
@@ -55,7 +55,7 @@ interface EventFormProps {
   initialData?: InitialEventData;
 }
 
-function EventForm({ mode, initialData }: EventFormProps) {
+export default function EventForm({ mode, initialData }: EventFormProps) {
   const { user } = useUser();
   const createEvent = useMutation(api.events.create);
   const updateEvent = useMutation(api.events.updateEvent);
@@ -63,16 +63,16 @@ function EventForm({ mode, initialData }: EventFormProps) {
   const [isPending, startTransition] = useTransition();
   const currentImageUrl = useStorageUrl(initialData?.imageStorageId);
 
-  // ✅ Image Upload
+  // Image upload
   const imageInput = useRef<HTMLInputElement>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
   const updateEventImage = useMutation(api.storage.updateEventImage);
   const deleteImage = useMutation(api.storage.deleteImage);
+
   const [removedCurrentImage, setRemovedCurrentImage] = useState(false);
 
-  // ✅ Initialize Form
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -85,50 +85,87 @@ function EventForm({ mode, initialData }: EventFormProps) {
     },
   });
 
-  // ✅ Handle Form Submission with Sonner Toaster
   async function onSubmit(values: FormData) {
+    if (!user?.id) return;
+
     startTransition(async () => {
       try {
-        if (mode === "create") {
-          await createEvent({
-            ...values,
-            userId: user?.id ?? "", // ✅ Ensures `userId` is always a string
-            eventDate: values.eventDate.getTime(),
-          });
+        let imageStorageId = null;
 
-          toast.success("Event Created!", {
-            description: "Your event has been successfully created.",
-          });
-        } else {
-          if (!initialData?.eventId) {
-            toast.error("Error!", {
-              description: "Event ID is missing. Cannot update.",
-            });
-            return;
-          }
-
-          await updateEvent({
-            ...values,
-            eventId: initialData?.eventId ?? "", 
-            eventDate: values.eventDate.getTime(),
-          });
-
-          toast.success("Event Updated!", {
-            description: "Your event has been successfully updated.",
-          });
+        // Handle image changes
+        if (selectedImage) {
+          // Upload new image
+          imageStorageId = await handleImageUpload(selectedImage);
         }
 
-        router.push("/events");
+        // Handle image deletion/update in edit mode
+        if (mode === "edit" && initialData?.imageStorageId) {
+          if (removedCurrentImage || selectedImage) {
+            // Delete old image from storage
+            await deleteImage({
+              storageId: initialData.imageStorageId,
+            });
+          }
+        }
+
+        if (mode === "create") {
+          const eventId = await createEvent({
+            ...values,
+            userId: user.id,
+            eventDate: values.eventDate.getTime(),
+          });
+
+          if (imageStorageId) {
+            await updateEventImage({
+              eventId,
+              storageId: imageStorageId as Id<"_storage">,
+            });
+          }
+
+          toast.success("Event Created", {
+            description: "Your event has been successfully created.",
+          });
+
+          router.push(`/event/${eventId}`);
+        } else {
+          // Ensure initialData exists before proceeding with update
+          if (!initialData) {
+            throw new Error("Initial event data is required for updates");
+          }
+
+          // Update event details
+          await updateEvent({
+            eventId: initialData._id,
+            ...values,
+            eventDate: values.eventDate.getTime(),
+          });
+
+          // Update image - this will now handle both adding new image and removing existing image
+          if (imageStorageId || removedCurrentImage) {
+            await updateEventImage({
+              eventId: initialData._id,
+              // If we have a new image, use its ID, otherwise if we're removing the image, pass null
+              storageId: imageStorageId
+                ? (imageStorageId as Id<"_storage">)
+                : null,
+            });
+          }
+
+          toast.success("Event Updated", {
+            description: "Your event has been successfully updated.",
+          });
+
+          router.push(`/event/${initialData._id}`);
+        }
       } catch (error) {
-        console.error("Error submitting event:", error);
-        toast.error("Something went wrong!", {
-          description: "Please try again later.",
+        console.error("Failed to handle event:", error);
+        toast.error("Something went wrong", {
+          description: "There was a problem with your request.",
         });
       }
     });
   }
 
-  // ✅ Handle Image Upload
   async function handleImageUpload(file: File): Promise<string | null> {
     try {
       const postUrl = await generateUploadUrl();
@@ -138,56 +175,76 @@ function EventForm({ mode, initialData }: EventFormProps) {
         body: file,
       });
       const { storageId } = await result.json();
-
-      toast.success("Image Uploaded!", {
-        description: "The event image has been successfully uploaded.",
-      });
-
       return storageId;
     } catch (error) {
       console.error("Failed to upload image:", error);
-      toast.error("Image Upload Failed!", {
+      toast.error("Image Upload Failed", {
         description: "Please try again.",
       });
       return null;
     }
   }
 
+  const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
         {/* Form fields */}
-        <FormField control={form.control} name="name" render={({ field }) => (
-          <FormItem>
-            <FormLabel>Event Name</FormLabel>
-            <FormControl><Input {...field} /></FormControl>
-            <FormMessage />
-          </FormItem>
-        )} />
+        <div className="space-y-4">
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Event Name</FormLabel>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <FormField control={form.control} name="description" render={({ field }) => (
-          <FormItem>
-            <FormLabel>Description</FormLabel>
-            <FormControl><Textarea {...field} /></FormControl>
-            <FormMessage />
-          </FormItem>
-        )} />
+          <FormField
+            control={form.control}
+            name="description"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Description</FormLabel>
+                <FormControl>
+                  <Textarea {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <FormField
-          control={form.control}
-          name="location"
-          render={({field}) =>(
-            <FormItem>
-              <FormLabel>Location</FormLabel>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        <FormField
+          <FormField
+            control={form.control}
+            name="location"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Location</FormLabel>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
             control={form.control}
             name="eventDate"
             render={({ field }) => (
@@ -213,7 +270,7 @@ function EventForm({ mode, initialData }: EventFormProps) {
               </FormItem>
             )}
           />
-          
+
           <FormField
             control={form.control}
             name="price"
@@ -221,7 +278,7 @@ function EventForm({ mode, initialData }: EventFormProps) {
               <FormItem>
                 <FormLabel>Price per Ticket</FormLabel>
                 <FormControl>
-                  <div className="relative">
+                <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 font-medium text-gray-700">
                       Ksh.
                     </span>
@@ -241,6 +298,7 @@ function EventForm({ mode, initialData }: EventFormProps) {
               </FormItem>
             )}
           />
+
           <FormField
             control={form.control}
             name="totalTickets"
@@ -248,7 +306,7 @@ function EventForm({ mode, initialData }: EventFormProps) {
               <FormItem>
                 <FormLabel>Total Tickets Available</FormLabel>
                 <FormControl>
-                  <Input
+                <Input
                     type="number"
                     placeholder="1" 
                     {...field}
@@ -262,41 +320,51 @@ function EventForm({ mode, initialData }: EventFormProps) {
               </FormItem>
             )}
           />
-          
-        {/*Image Upload */}
-        <div className="space-y-4">
-          <label className="block text-sm font-medium text-gray-700">Event Image</label>
-          <div className="mt-1 flex items-center gap-4">
-            {imagePreview || (!removedCurrentImage && currentImageUrl) ? (
-              <div className="relative w-32 aspect-square bg-gray-100 rounded-lg">
-                <Image
-                  src={imagePreview || currentImageUrl!}
-                  alt="Preview"
-                  fill
-                  className="object-contain rounded-lg"
+
+          {/* Image Upload */}
+          <div className="space-y-4">
+            <label className="block text-sm font-medium text-gray-700">
+              Event Image
+            </label>
+            <div className="mt-1 flex items-center gap-4">
+              {imagePreview || (!removedCurrentImage && currentImageUrl) ? (
+                <div className="relative w-32 aspect-square bg-gray-100 rounded-lg">
+                  <Image
+                    src={imagePreview || currentImageUrl!}
+                    alt="Preview"
+                    fill
+                    className="object-contain rounded-lg"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedImage(null);
+                      setImagePreview(null);
+                      setRemovedCurrentImage(true);
+                      if (imageInput.current) {
+                        imageInput.current.value = "";
+                      }
+                    }}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 transition-colors"
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : (
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  ref={imageInput}
+                  className="block w-full text-sm text-gray-500
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-full file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-blue-50 file:text-blue-700
+                    hover:file:bg-blue-100"
                 />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedImage(null);
-                    setImagePreview(null);
-                    setRemovedCurrentImage(true);
-                    if (imageInput.current) imageInput.current.value = "";
-                  }}
-                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 transition-colors"
-                >
-                  ×
-                </button>
-              </div>
-            ) : (
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => handleImageUpload(e.target.files?.[0]!)}
-                ref={imageInput}
-                className="block w-full text-sm text-gray-500 file:bg-blue-50 file:text-blue-700 file:rounded-full file:border-0 file:py-2 file:px-4 hover:file:bg-blue-100"
-              />
-            )}
+              )}
+            </div>
           </div>
         </div>
 
@@ -320,5 +388,3 @@ function EventForm({ mode, initialData }: EventFormProps) {
     </Form>
   );
 }
-
-export default EventForm;
