@@ -261,6 +261,7 @@ export const get = query({
       }
     },
   });
+
 // Get user's tickets with event information
 export const getUserTickets = query({
   args: { userId: v.string() },
@@ -342,5 +343,45 @@ export const getSellerEvents = query({
     );
 
     return eventsWithMetrics;
+  },
+});
+export const cancelEvent = mutation({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    const event = await ctx.db.get(eventId);
+    if (!event) throw new Error("Event not found");
+
+    // Get all valid tickets for this event
+    const tickets = await ctx.db
+      .query("tickets")
+      .withIndex("by_event", (q) => q.eq("eventId", eventId))
+      .filter((q) =>
+        q.or(q.eq(q.field("status"), "valid"), q.eq(q.field("status"), "used"))
+      )
+      .collect();
+
+    // Mark all active tickets as "inactive"
+    for (const ticket of tickets) {
+      await ctx.db.patch(ticket._id, {
+        status: "cancelled", // Update ticket status to inactive
+      });
+    }
+
+    // Mark the event as cancelled
+    await ctx.db.patch(eventId, {
+      is_cancelled: true, // Update event status to cancelled
+    });
+
+    // Delete any waiting list entries
+    const waitingListEntries = await ctx.db
+      .query("waitingList")
+      .withIndex("by_event_status", (q) => q.eq("eventId", eventId))
+      .collect();
+
+    for (const entry of waitingListEntries) {
+      await ctx.db.delete(entry._id);
+    }
+
+    return { success: true };
   },
 });

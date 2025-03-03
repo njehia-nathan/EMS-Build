@@ -57,7 +57,7 @@ const SellerDashboard = () => {
         <Button className="bg-blue-500 text-white py-3 px-6 rounded-xl shadow-sm hover:bg-blue-600" onClick={() => router.push("/seller/new-event")}>
           Create New Event
         </Button>
-        <button className="bg-gray-100 text-gray-800 px-3 py-1.5 text-sm rounded-lg hover:bg-gray-200 transition border border-gray-300" onClick={() => router.push("/seller/my-events")}>View My Events</button>
+        <button className="bg-gray-100 text-gray-800 px-3 py-1.5 text-sm rounded-lg hover:bg-gray-200 transition border border-gray-300" onClick={() => router.push("/seller/events")}>View My Events</button>
       </div>
 
       <Card className="bg-white border border-gray-200 shadow-sm rounded-xl">
