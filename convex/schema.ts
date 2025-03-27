@@ -54,4 +54,50 @@ export default defineSchema({
   })
     .index("by_user_id", ["userId"])
     .index("by_email", ["email"]),
-});
+    payments: defineTable({
+      userId: v.string(),
+      eventId: v.id("events"),
+      ticketId: v.id("tickets"),
+      amount: v.number(),
+      currency: v.string(),
+      paymentMethod: v.string(),
+      transactionId: v.string(),
+      status: v.string(), // "pending", "completed", "failed", "refunded"
+      paymentDetails: v.optional(v.object({
+        reference: v.string(),
+        gateway: v.string(),
+        cardType: v.optional(v.string()),
+        lastFour: v.optional(v.string()),
+        authorizationCode: v.optional(v.string())
+      })),
+      refundDetails: v.optional(v.object({
+        refundId: v.string(),
+        refundedAt: v.number(),
+        reason: v.string()
+      })),
+      createdAt: v.number(),
+    })
+      .index("by_user", ["userId"])
+      .index("by_event", ["eventId"])
+      .index("by_ticket", ["ticketId"])
+      .index("by_status", ["status"]),
+
+    emails: defineTable({
+      to: v.string(),
+      from: v.string(),
+      fromName: v.string(),
+      subject: v.string(),
+      body: v.string(),
+        status: v.string(), // "sent", "delivered", "failed"
+        sentAt: v.number(),
+        deliveredAt: v.optional(v.number()),
+        errorMessage: v.optional(v.string()),
+      }).index("by_to", ["to"]).index("by_status", ["status"]),
+
+      settings: defineTable({
+        key: v.string(),
+        value: v.any(),
+        updatedAt: v.number(),
+        updatedBy: v.optional(v.string()),
+      }).index("by_key", ["key"]),
+  });

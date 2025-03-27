@@ -1,10 +1,34 @@
-import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
+"use client"
+import { SignInButton, SignedIn, SignedOut, UserButton, useAuth } from "@clerk/nextjs";
 import Image from "next/image";
 import Link from "next/link";
 import logo from "@/images/logo.png";
 import SearchBar from "./SearchBar";
+import { useEffect, useState } from "react";
 
 function Header() {
+  const { userId, isLoaded } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    // Check if the current user is an admin using the API endpoint
+    const checkAdminStatus = async () => {
+      if (userId && isLoaded) {
+        try {
+          const response = await fetch('/api/check-admin');
+          if (response.ok) {
+            const data = await response.json();
+            setIsAdmin(data.isAdmin);
+          }
+        } catch (error) {
+          console.error('Error checking admin status:', error);
+        }
+      }
+    };
+
+    checkAdminStatus();
+  }, [userId, isLoaded]);
+
   return (
     <div className="border-b">
       <div className="flex flex-col lg:flex-row items-center gap-4 p-4">
@@ -41,6 +65,14 @@ function Header() {
         <div className="hidden lg:block ml-auto">
           <SignedIn>
             <div className="flex items-center gap-3">
+              {isAdmin && (
+                <Link href="/admin">
+                  <button className="bg-purple-600 text-white px-3 py-1.5 text-sm rounded-lg hover:bg-purple-700 transition animate-bounce">
+                    Admin Dashboard
+                  </button>
+                </Link>
+              )}
+              
               <Link href="/seller">
                 <button className="bg-blue-600 text-white px-3 py-1.5 text-sm rounded-lg hover:bg-blue-700 transition">
                   Sell Tickets
@@ -68,6 +100,14 @@ function Header() {
         {/* Mobile Action Buttons */}
         <div className="lg:hidden w-full flex justify-center gap-3">
           <SignedIn>
+            {isAdmin && (
+              <Link href="/admin" className="flex-1">
+                <button className="w-full bg-purple-600 text-white px-3 py-1.5 text-sm rounded-lg hover:bg-purple-700 transition animate-bounce">
+                  Admin
+                </button>
+              </Link>
+            )}
+            
             <Link href="/seller" className="flex-1">
               <button className="w-full bg-blue-600 text-white px-3 py-1.5 text-sm rounded-lg hover:bg-blue-700 transition">
                 Sell Tickets
