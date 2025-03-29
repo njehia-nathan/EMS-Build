@@ -1,46 +1,43 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import SellerEventList from "@/components/SellerEventList";
+import { getConvexClient } from "@/lib/convex";
+import { api } from "@/convex/_generated/api";
+import SellerEventList from "@/components/seller/SellerEventList";
 import Link from "next/link";
-import { ArrowLeft, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 
 export default async function SellerEventsPage() {
   const { userId } = await auth();
   if (!userId) redirect("/");
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <Link
-                href="/seller"
-                className="text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </Link>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">My Events</h1>
-                <p className="mt-1 text-gray-500">
-                  Manage your event listings and track sales
-                </p>
-              </div>
-            </div>
-            <Link
-              href="/seller/new-event"
-              className="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="w-5 h-5" />
-              Create Event
-            </Link>
-          </div>
-        </div>
+  // Verify user is a seller or superadmin
+  const convex = getConvexClient();
+  const isSeller = await convex.query(api.users.isSeller, { userId });
+  const isSuperAdmin = await convex.query(api.users.isSuperAdmin, { userId });
+  
+  if (!isSeller && !isSuperAdmin) {
+    redirect("/");
+  }
+  
+  // Get seller events
+  const events = await convex.query(api.seller.getSellerEvents, { sellerId: userId });
 
-        {/* Event List */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <SellerEventList />
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="py-6">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-semibold text-gray-900">My Events</h1>
+          <Link
+            href="/seller/new-event"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Create Event
+          </Link>
+        </div>
+        
+        <div className="bg-white shadow overflow-hidden sm:rounded-md">
+          <SellerEventList events={events} />
         </div>
       </div>
     </div>

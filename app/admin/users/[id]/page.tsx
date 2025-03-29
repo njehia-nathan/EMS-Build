@@ -8,6 +8,7 @@ import { ArrowLeft, User, Mail, Calendar, Ticket, CreditCard, AlertCircle } from
 import UserPurchasesTable from "@/components/admin/UserPurchasesTable";
 import UserTicketsTable from "@/components/admin/UserTicketsTable";
 import UserEventsTable from "@/components/admin/UserEventsTable";
+import UserRoleManager from "@/components/admin/UserRoleManager";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 async function UserDetailPage({ params }: { params: { id: string } }) {
@@ -102,6 +103,11 @@ async function UserDetailPage({ params }: { params: { id: string } }) {
                       </button>
                     )}
                   </div>
+                </div>
+                
+                {/* User Role Manager */}
+                <div className="mt-6">
+                  <UserRoleManager userId={user.userId} currentRole={user.role || "user"} />
                 </div>
               </div>
               

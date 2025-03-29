@@ -5,6 +5,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { ConvexClientProvider } from "@/components/ConvexClientProvider";
 import Header from "@/components/Header";
 import SyncUserWithConvex from "@/components/SyncUserWithConvex";
+import RoleSelectionDialog from "@/components/RoleSelectionDialog";
 import { Toaster } from "sonner"; // ✅ Import Sonner's Toaster
 
 const geistSans = Geist({
@@ -37,6 +38,7 @@ export default function RootLayout({
           <ClerkProvider>
             <Header />
             <SyncUserWithConvex />
+            <RoleSelectionDialog />
             {children}
           </ClerkProvider>
         </ConvexClientProvider>

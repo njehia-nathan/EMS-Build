@@ -3,28 +3,24 @@
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useUser } from "@clerk/nextjs";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery } from "convex/react";
 import { Ticket } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import ReleaseTicket from "./ReleaseTicket";
-import { toast } from "sonner";
+import PaystackPaymentIntegration from "./PaystackPaymentIntegration";
 
 function PurchaseTicket({ eventId }: { eventId: Id<"events"> }) {
-    const router = useRouter();
     const { user } = useUser();
     const queuePosition = useQuery(api.waitingList.getQueuePosition, {
         eventId,
         userId: user?.id ?? "",
     });
+    const event = useQuery(api.events.getById, { eventId });
 
     const [timeRemaining, setTimeRemaining] = useState("");
-    const [isLoading, setIsLoading] = useState(false);
 
     const offerExpiresAt = queuePosition?.offerExpiresAt ?? 0;
     const isExpired = Date.now() >= offerExpiresAt;
-
-    const purchaseTicket = useMutation(api.tickets.purchaseTicket);
 
     useEffect(() => {
         const calculateTimeRemaining = () => {
@@ -54,35 +50,9 @@ function PurchaseTicket({ eventId }: { eventId: Id<"events"> }) {
         return () => clearInterval(interval);
     }, [offerExpiresAt, isExpired]);
 
-    // Create Paystack Checkout
-    const handlePurchase = async () => {
-        if (!user || !queuePosition || queuePosition.status !== "offered") {
-            return;
-        }
-
-        try {
-            setIsLoading(true);
-            const result = await purchaseTicket({
-                eventId,
-                userId: user.id,
-                waitingListId: queuePosition._id,
-            });
-
-            if (result.success) {
-                toast.success("Success!", {
-                    description: "Your ticket has been purchased successfully!",
-                });
-                router.refresh();
-            }
-        } catch (error) {
-            console.error("Error purchasing ticket:", error);
-            toast.error("Failed to purchase ticket", {
-                description: "Please try again later.",
-            });
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    if (!queuePosition || !event || queuePosition.status !== "offered") {
+        return null;
+    }
 
     return (
         <div className="bg-white p-6 rounded-xl shadow-lg border border-amber-200">
@@ -110,17 +80,16 @@ function PurchaseTicket({ eventId }: { eventId: Id<"events"> }) {
                     </div>
                 </div>
 
-                <button
-                    onClick={handlePurchase}
-                    disabled={isExpired || isLoading}
-                    className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white px-8 py-4 rounded-lg font-bold shadow-md
-                    hover:from-amber-600 hover:to-amber-700 transform hover:scale-[1.02] transition-all duration-200
-                    disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed disabled:hover:scale-100 text-lg"
-                >
-                    {isLoading
-                        ? "Processing purchase..."
-                        : "Purchase Your Ticket Now →"}
-                </button>
+                {user && !isExpired && (
+                    <PaystackPaymentIntegration
+                        eventId={eventId}
+                        eventName={event.name}
+                        ticketPrice={event.price}
+                        userEmail={user.emailAddresses[0].emailAddress}
+                        userId={user.id}
+                        waitingListId={queuePosition._id}
+                    />
+                )}
 
                 <div className="mt-4">
                     {queuePosition && (

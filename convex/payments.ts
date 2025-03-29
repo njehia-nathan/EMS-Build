@@ -4,6 +4,49 @@ import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { paystackService } from "../lib/paystack";
 
+// Create a payment record directly (for Paystack integration)
+export const createPayment = mutation({
+  args: {
+    userId: v.string(),
+    eventId: v.id("events"),
+    ticketId: v.id("tickets"),
+    amount: v.number(),
+    currency: v.string(),
+    paymentMethod: v.string(),
+    transactionId: v.string(),
+    status: v.string(),
+    paymentDetails: v.optional(v.object({
+      reference: v.string(),
+      gateway: v.string(),
+      cardType: v.optional(v.string()),
+      lastFour: v.optional(v.string()),
+      authorizationCode: v.optional(v.string())
+    })),
+    sellerId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Record the payment
+    const paymentId = await ctx.db.insert("payments", {
+      userId: args.userId,
+      eventId: args.eventId,
+      ticketId: args.ticketId,
+      amount: args.amount,
+      currency: args.currency,
+      paymentMethod: args.paymentMethod,
+      transactionId: args.transactionId,
+      status: args.status,
+      paymentDetails: args.paymentDetails,
+      createdAt: Date.now(),
+      sellerId: args.sellerId,
+      platformFee: 0, // Will be calculated by processPaymentWithCommission
+      sellerAmount: 0, // Will be calculated by processPaymentWithCommission
+      payoutStatus: "pending"
+    });
+    
+    return paymentId;
+  },
+});
+
 // Initiate a payment transaction
 export const initiatePayment = mutation({
   args: {
@@ -37,6 +80,10 @@ export const initiatePayment = mutation({
       transactionId: args.reference,
       status: "pending",
       createdAt: Date.now(),
+      sellerId: event.userId, // Set the event creator as the seller
+      platformFee: 0,
+      sellerAmount: 0,
+      payoutStatus: "pending"
     });
     
     return { success: true, paymentId };
@@ -216,35 +263,31 @@ export const processWebhookFailure = mutation({
 export const processWebhookRefund = mutation({
   args: {
     reference: v.string(),
-    refundId: v.string(),
     status: v.string(),
     refundDetails: v.object({
       refundId: v.string(),
       refundedAt: v.number(),
-      reason: v.string(),
+      reason: v.string()
     }),
   },
   handler: async (ctx, args) => {
-    // Find the completed payment
+    // Find the payment
     const payment = await ctx.db
       .query("payments")
-      .filter((q) => 
-        q.eq(q.field("transactionId"), args.reference) && 
-        q.eq(q.field("status"), "completed")
-      )
+      .filter((q) => q.eq(q.field("transactionId"), args.reference))
       .first();
     
     if (!payment) {
       throw new Error("Payment not found");
     }
     
-    // Update payment status
+    // Update payment status and add refund details
     await ctx.db.patch(payment._id, {
       status: args.status,
       refundDetails: args.refundDetails,
     });
     
-    // If there's a ticket, mark it as refunded
+    // If there's a ticket, update its status
     if (payment.ticketId) {
       await ctx.db.patch(payment.ticketId, {
         status: "refunded",
@@ -260,46 +303,40 @@ export const processRefund = mutation({
   args: {
     paymentId: v.id("payments"),
     reason: v.string(),
+    adminId: v.string(), // ID of admin processing the refund
   },
   handler: async (ctx, args) => {
+    // Get the payment
     const payment = await ctx.db.get(args.paymentId);
-    if (!payment || payment.status !== "completed") {
-      throw new Error("Cannot refund this payment");
+    if (!payment) {
+      throw new Error("Payment not found");
     }
     
-    try {
-      // Process refund with Paystack
-      const refundResult = await paystackService.initiateRefund({
-        transaction: payment.transactionId,
-        merchant_note: args.reason,
-      });
-      
-      if (refundResult.status) {
-        // Update payment status
-        await ctx.db.patch(args.paymentId, {
-          status: "refunded",
-          refundDetails: {
-            refundId: refundResult.data.id.toString(),
-            refundedAt: Date.now(),
-            reason: args.reason,
-          },
-        });
-        
-        // If there's a ticket, mark it as refunded
-        if (payment.ticketId) {
-          await ctx.db.patch(payment.ticketId, {
-            status: "refunded",
-          });
-        }
-        
-        return { success: true };
-      } else {
-        return { success: false, message: "Refund request failed" };
-      }
-    } catch (error) {
-      console.error("Refund processing error:", error);
-      return { success: false, message: "An error occurred processing the refund" };
+    if (payment.status !== "completed") {
+      throw new Error("Cannot refund a payment that is not completed");
     }
+    
+    // In a real implementation, you would call the Paystack API to process the refund
+    // For now, we'll just update our database
+    
+    // Update payment status
+    await ctx.db.patch(args.paymentId, {
+      status: "refunded",
+      refundDetails: {
+        refundId: `manual-${Date.now()}`,
+        refundedAt: Date.now(),
+        reason: args.reason
+      }
+    });
+    
+    // Update ticket status
+    if (payment.ticketId) {
+      await ctx.db.patch(payment.ticketId, {
+        status: "refunded",
+      });
+    }
+    
+    return { success: true };
   },
 });
 

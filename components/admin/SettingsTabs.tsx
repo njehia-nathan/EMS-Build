@@ -8,6 +8,7 @@ import PaymentSettings from "./settings/PaymentSettings";
 import EmailSettings from "./settings/EmailSettings";
 import SecuritySettings from "./settings/SecuritySettings";
 import AdminUserSettings from "./settings/AdminUserSettings";
+import CommissionSettings from "./CommissionSettings";
 
 type SettingsProps = {
   settings: {
@@ -47,11 +48,12 @@ export default function SettingsTabs({ settings }: SettingsProps) {
   
   return (
     <Tabs defaultValue="general" onValueChange={setActiveTab} className="w-full">
-      <TabsList className="grid grid-cols-5 w-full">
+      <TabsList className="grid grid-cols-6 w-full">
         <TabsTrigger value="general">General</TabsTrigger>
         <TabsTrigger value="payment">Payment</TabsTrigger>
         <TabsTrigger value="email">Email</TabsTrigger>
         <TabsTrigger value="security">Security</TabsTrigger>
+        <TabsTrigger value="commission">Commission</TabsTrigger>
         <TabsTrigger value="admins">Admin Users</TabsTrigger>
       </TabsList>
       
@@ -70,6 +72,10 @@ export default function SettingsTabs({ settings }: SettingsProps) {
         
         <TabsContent value="security" className={activeTab === "security" ? "block" : "hidden"}>
           <SecuritySettings settings={settings.security} />
+        </TabsContent>
+        
+        <TabsContent value="commission" className={activeTab === "commission" ? "block" : "hidden"}>
+          <CommissionSettings />
         </TabsContent>
         
         <TabsContent value="admins" className={activeTab === "admins" ? "block" : "hidden"}>

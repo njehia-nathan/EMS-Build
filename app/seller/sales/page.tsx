@@ -2,9 +2,9 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { getConvexClient } from "@/lib/convex";
 import { api } from "@/convex/_generated/api";
-import SellerDashboardClient from "@/components/seller/SellerDashboardClient";
+import SellerSalesClient from "@/components/seller/SellerSalesClient";
 
-export default async function SellerPage() {
+export default async function SellerSalesPage() {
   const { userId } = await auth();
   if (!userId) redirect("/");
 
@@ -17,12 +17,12 @@ export default async function SellerPage() {
     redirect("/");
   }
   
-  // Get seller dashboard data
-  const dashboardData = await convex.query(api.users.getSellerDashboard, { sellerId: userId });
+  // Get seller sales data
+  const payments = await convex.query(api.seller.getSellerPayments, { sellerId: userId });
   
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <SellerDashboardClient dashboardData={dashboardData} />
+      <SellerSalesClient payments={payments} />
     </div>
   );
 }

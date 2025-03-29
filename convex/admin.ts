@@ -326,7 +326,7 @@ export const getAllUsers = query({
           eventsCreated: events.length,
           totalSpent,
           joinedAt: user._creationTime,
-          lastActive: user._updatedAt,
+          lastActive: user._creationTime,
         };
       }));
     }
