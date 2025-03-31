@@ -32,6 +32,9 @@ export default function PaystackPaymentIntegration({
   const [reference, setReference] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'mobile_money'>('mobile_money');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [processingSteps, setProcessingSteps] = useState<string[]>([]);
+  const [processingFailed, setProcessingFailed] = useState(false);
+  const [processingErrorMessage, setProcessingErrorMessage] = useState('');
   
   // Get event creator to set as seller
   const event = useQuery(api.events.getById, { eventId });
@@ -52,72 +55,173 @@ export default function PaystackPaymentIntegration({
     setReference(generateReference());
   }, []);
   
+  // Function to track steps
+  const trackStep = (step: string) => {
+    console.log(`PAYMENT TRACKING: ${step}`);
+    setProcessingSteps(prev => [...prev, step]);
+  };
+  
   // Define success handler
   const handleSuccess = async (reference: any) => {
+    // Create a retry function for database operations
+    const retryOperation = async (operation: () => Promise<any>, operationName: string, maxRetries = 3) => {
+      let lastError;
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          trackStep(`${operationName} - Attempt ${attempt}`);
+          const result = await operation();
+          trackStep(`${operationName} - Success`);
+          return result;
+        } catch (error) {
+          console.error(`${operationName} - Attempt ${attempt} failed:`, error);
+          trackStep(`${operationName} - Attempt ${attempt} failed: ${error.message || 'Unknown error'}`);
+          lastError = error;
+          // Wait before retrying (exponential backoff)
+          if (attempt < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+          }
+        }
+      }
+      trackStep(`${operationName} - All attempts failed`);
+      throw lastError;
+    };
+    
     try {
       setIsLoading(true);
+      trackStep('Payment marked as successful by Paystack');
       console.log("Payment successful with reference:", reference);
       
-      // Extract the reference ID - Paystack returns different formats in different scenarios
-      const referenceId = reference.reference || reference.trxref || reference;
+      // Properly handle the reference in different formats
+      // Paystack can return different response structures
+      const originalReference = reference;
+      trackStep('Processing payment reference data');
+      
+      // Normalize the reference ID - Paystack returns different formats in different scenarios
+      let referenceId;
+      if (typeof reference === 'string') {
+        referenceId = reference;
+      } else {
+        referenceId = reference.reference || reference.trxref || reference.transaction || reference.id || JSON.stringify(reference);
+      }
+      
+      console.log("Using reference ID:", referenceId);
+      trackStep(`Payment reference identified: ${referenceId}`);
       
       // 1. Purchase the ticket
-      const ticketResult = await purchaseTicket({
+      console.log("Creating ticket with event:", eventId, "user:", userId, "waitingList:", waitingListId);
+      trackStep('Initiating ticket purchase in database');
+      const ticketResult = await retryOperation(() => purchaseTicket({
         eventId,
         userId,
         waitingListId,
-      });
+      }), 'Ticket Purchase');
+      
+      console.log("Ticket purchase result:", ticketResult);
+      trackStep(`Ticket created with ID: ${ticketResult.ticketId}`);
       
       if (!ticketResult.success || !ticketResult.ticketId) {
-        throw new Error("Failed to create ticket");
+        throw new Error("Failed to create ticket: " + JSON.stringify(ticketResult));
       }
       
       // 2. Record the payment in our database
-      const paymentResult = await createPayment({
+      // Ensure we have a string for the reference ID to avoid database type issues
+      const normalizedReference = typeof referenceId === 'string' ? referenceId : JSON.stringify(referenceId);
+      console.log("Creating payment record with reference:", normalizedReference);
+      trackStep('Creating payment record in database');
+      
+      // Extract authorization details safely
+      const authorizationCode = reference?.authorization?.authorization_code || '';
+      const cardType = reference?.authorization?.card_type || '';
+      const lastFour = reference?.authorization?.last4 || '';
+      
+      // Create a sanitized version of the payment response for storage
+      // Remove any circular references that might cause JSON.stringify to fail
+      let paymentResponseStr;
+      try {
+        // First try to stringify the whole response
+        paymentResponseStr = JSON.stringify(originalReference);
+        trackStep('Payment response data stringified successfully');
+      } catch (e) {
+        // If that fails, create a simplified version
+        console.error("Error stringifying payment response:", e);
+        trackStep(`Error stringifying payment response: ${e.message}`);
+        paymentResponseStr = JSON.stringify({
+          reference: referenceId,
+          status: reference?.status || 'success',
+          message: reference?.message || 'Payment successful',
+          timestamp: Date.now()
+        });
+        trackStep('Created simplified payment response data');
+      }
+      
+      const paymentResult = await retryOperation(() => createPayment({
         userId,
         eventId,
         ticketId: ticketResult.ticketId,
         amount: ticketPrice,
         currency: "KES", // Kenyan Shilling
         paymentMethod: paymentMethod === 'mobile_money' ? 'mpesa' : 'card',
-        transactionId: typeof referenceId === 'string' ? referenceId : JSON.stringify(referenceId),
+        transactionId: normalizedReference,
         status: "completed",
         paymentDetails: {
-          reference: typeof referenceId === 'string' ? referenceId : JSON.stringify(referenceId),
+          reference: normalizedReference,
           gateway: "paystack",
-          authorizationCode: reference.authorization?.authorization_code || '',
-          cardType: reference.authorization?.card_type || '',
-          lastFour: reference.authorization?.last4 || '',
+          authorizationCode,
+          cardType,
+          lastFour,
+          paymentResponse: paymentResponseStr,
         },
         sellerId: event?.userId || userId, // Use event creator as seller
-      });
+      }), 'Payment Record Creation');
       
       console.log("Payment saved with ID:", paymentResult);
+      trackStep(`Payment record saved with ID: ${paymentResult}`);
+      
+      if (!paymentResult) {
+        throw new Error("Failed to create payment record");
+      }
       
       // 3. Process commission for the payment
-      if (paymentResult) {
-        const commissionResult = await processPaymentWithCommission({
+      try {
+        trackStep('Processing commission');
+        const commissionResult = await retryOperation(() => processPaymentWithCommission({
           paymentId: paymentResult,
           commissionRate: event?.commissionRate, // Use event-specific commission if set
-        });
+        }), 'Commission Processing');
         console.log("Commission processed:", commissionResult);
+        trackStep('Commission processed successfully');
+      } catch (commissionError) {
+        // Don't fail the whole transaction if commission processing fails
+        console.error("Error processing commission:", commissionError);
+        trackStep(`Commission processing error: ${commissionError.message || 'Unknown error'}`);
+        toast.error("Commission processing error", {
+          description: "Your ticket was purchased but we had trouble calculating the seller commission.",
+        });
       }
       
       // 4. Show success message and update UI
       setIsSuccess(true);
+      trackStep('Payment process completed successfully');
       toast.success("Payment successful!", {
         description: "Your ticket has been purchased successfully!",
       });
       
       // 5. Refresh the page after a short delay
+      trackStep('Scheduling page refresh');
       setTimeout(() => {
+        trackStep('Performing page refresh/redirect');
         router.refresh();
+        // Force reload if needed for more reliable UI updates
+        window.location.href = '/my-tickets';
       }, 2000);
       
     } catch (error) {
       console.error("Error processing payment:", error);
+      setProcessingFailed(true);
+      setProcessingErrorMessage(error.message || 'Unknown error');
+      trackStep(`Payment processing failed: ${error.message || 'Unknown error'}`);
       toast.error("Payment processing error", {
-        description: "Your payment was received but we encountered an error processing it. Please contact support.",
+        description: "Your payment was received but we encountered an error processing it. Please contact support with reference: " + reference.reference,
       });
     } finally {
       setIsLoading(false);
@@ -131,6 +235,46 @@ export default function PaystackPaymentIntegration({
       description: "You can complete your purchase later.",
     });
   };
+  
+  // Set up a function to watch for URL changes that might indicate a redirect back from Paystack
+  useEffect(() => {
+    // Check if there are Paystack parameters in the URL (happens on redirect)
+    const checkUrlForPaystackResponse = () => {
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const trxref = urlParams.get('trxref');
+        const reference = urlParams.get('reference');
+        
+        // If we have a transaction reference but we're not in success state yet
+        if ((trxref || reference) && !isSuccess && !isLoading) {
+          console.log("Detected Paystack redirect parameters in URL:", { trxref, reference });
+          trackStep('Detected payment redirect parameters in URL');
+          
+          // Construct response object similar to what direct callback would receive
+          const redirectResponse = {
+            trxref: trxref,
+            reference: reference,
+            status: "success", // Assume success since Paystack redirects on success
+            message: "Transaction completed via redirect",
+            redirectDetected: true
+          };
+          
+          // Handle as success
+          handleSuccess(redirectResponse);
+        }
+      }
+    };
+    
+    // Check immediately on component mount
+    checkUrlForPaystackResponse();
+    
+    // Also set up to check if the URL changes (e.g., browser back/forward navigation)
+    window.addEventListener('popstate', checkUrlForPaystackResponse);
+    
+    return () => {
+      window.removeEventListener('popstate', checkUrlForPaystackResponse);
+    };
+  }, [isSuccess, isLoading]);
   
   // Configure Paystack
   const config = {
@@ -183,7 +327,7 @@ export default function PaystackPaymentIntegration({
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'KES',
-    }).format(price / 100);
+    }).format(price);
   };
   
   return (
@@ -205,6 +349,23 @@ export default function PaystackPaymentIntegration({
           >
             View My Tickets
           </button>
+          
+          {/* Debug panel - could be enabled with a query param in production */}
+          {processingSteps.length > 0 && (
+            <div className="mt-6 w-full text-left p-4 bg-gray-50 rounded-md border border-gray-200 text-xs">
+              <h4 className="font-semibold mb-2 text-sm">Payment Processing Steps:</h4>
+              <ol className="list-decimal pl-5 space-y-1">
+                {processingSteps.map((step, index) => (
+                  <li key={index} className="text-gray-700">{step}</li>
+                ))}
+              </ol>
+              {processingFailed && (
+                <div className="mt-3 text-red-600">
+                  <strong>Error:</strong> {processingErrorMessage}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-4">
@@ -302,8 +463,62 @@ export default function PaystackPaymentIntegration({
                 setIsLoading(false);
                 return;
               }
-              // @ts-ignore - types from react-paystack are not perfect
-              initializePayment(handleSuccess, handleClose);
+              
+              try {
+                console.log("Starting payment process with config:", {
+                  ...config,
+                  publicKey: config.publicKey ? "REDACTED" : "NOT_SET", // Don't log the public key
+                  callback_url: window.location.href // Add the current URL as callback
+                });
+                
+                // Set a timeout to reset the loading state if Paystack doesn't respond
+                const paymentTimeout = setTimeout(() => {
+                  if (isLoading) {
+                    console.error("Payment initialization timed out");
+                    toast.error("Payment process timed out", {
+                      description: "Please try again. If the problem persists, contact support."
+                    });
+                    setIsLoading(false);
+                  }
+                }, 30000); // 30 seconds timeout
+                
+                // Configure appropriate callbacks
+                const onSuccess = (response: any) => {
+                  clearTimeout(paymentTimeout);
+                  console.log("Payment success callback received:", response);
+                  trackStep('Paystack success callback received');
+                  
+                  // Ensure we have a response object with needed data
+                  if (!response) {
+                    console.error("Empty response from Paystack");
+                    trackStep('Empty response from Paystack');
+                    response = {
+                      reference: reference, // Use our internal reference
+                      status: "success", // Assume success
+                      message: "Transaction completed but empty response received"
+                    };
+                  }
+                  
+                  // Handle the successful payment
+                  handleSuccess(response);
+                };
+                
+                const onClose = () => {
+                  clearTimeout(paymentTimeout);
+                  console.log("Payment modal closed");
+                  trackStep('Paystack payment modal closed by user');
+                  handleClose();
+                };
+                
+                // @ts-ignore - types from react-paystack are not perfect
+                initializePayment(onSuccess, onClose);
+              } catch (error) {
+                console.error("Error initializing payment:", error);
+                toast.error("Payment initialization failed", {
+                  description: "Please try again or use a different payment method.",
+                });
+                setIsLoading(false);
+              }
             }}
             disabled={isLoading}
             className="w-full bg-green-600 text-white px-8 py-3 rounded-lg font-bold shadow-md
