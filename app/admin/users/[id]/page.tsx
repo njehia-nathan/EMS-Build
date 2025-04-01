@@ -126,7 +126,7 @@ async function UserDetailPage({ params }: { params: { id: string } }) {
                       <div className="bg-gray-50 p-8 text-center rounded-lg">
                         <Ticket className="h-10 w-10 text-gray-400 mx-auto mb-2" />
                         <h3 className="text-lg font-medium text-gray-900">No tickets purchased</h3>
-                        <p className="text-gray-500">This user hasn't purchased any tickets yet.</p>
+                        <p className="text-gray-500">This user hasn&apos;t purchased any tickets yet.</p>
                       </div>
                     )}
                   </TabsContent>
@@ -137,7 +137,7 @@ async function UserDetailPage({ params }: { params: { id: string } }) {
                       <div className="bg-gray-50 p-8 text-center rounded-lg">
                         <CreditCard className="h-10 w-10 text-gray-400 mx-auto mb-2" />
                         <h3 className="text-lg font-medium text-gray-900">No payment history</h3>
-                        <p className="text-gray-500">This user hasn't made any payments yet.</p>
+                        <p className="text-gray-500">This user hasn&apos;t made any payments yet.</p>
                       </div>
                     )}
                   </TabsContent>
@@ -148,7 +148,7 @@ async function UserDetailPage({ params }: { params: { id: string } }) {
                       <div className="bg-gray-50 p-8 text-center rounded-lg">
                         <Calendar className="h-10 w-10 text-gray-400 mx-auto mb-2" />
                         <h3 className="text-lg font-medium text-gray-900">No events created</h3>
-                        <p className="text-gray-500">This user hasn't created any events yet.</p>
+                        <p className="text-gray-500">This user hasn&apos;t created any events yet.</p>
                       </div>
                     )}
                   </TabsContent>

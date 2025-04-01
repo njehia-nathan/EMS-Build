@@ -158,7 +158,7 @@ export default function PaymentSettings({ settings }: PaymentSettingsProps) {
         <div className="border rounded-lg p-4 space-y-4">
           <div>
             <h3 className="text-lg font-medium">Refund Policy</h3>
-            <p className="text-sm text-gray-500">Set your platform's refund policy</p>
+            <p className="text-sm text-gray-500">Set your platform&apos;s refund policy</p>
           </div>
           
           <div className="space-y-2">
