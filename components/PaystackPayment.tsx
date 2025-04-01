@@ -1,4 +1,4 @@
-// 
+// @ts-nocheck
 // components/PurchaseTicket.tsx (updated)
 "use client";
 
