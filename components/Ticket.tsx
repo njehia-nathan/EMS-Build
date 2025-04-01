@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import QRCode from "react-qr-code";
 import Spinner from "./Spinner";
-import { useStorageUrl } from "@/lib/utils";
+import { useStorageUrl, formatCurrency } from "@/lib/utils";
 import Image from "next/image";
 
 function Ticket({ ticketId }: { ticketId: Id<"tickets"> }) {
@@ -112,7 +112,7 @@ function Ticket({ ticketId }: { ticketId: Id<"tickets"> }) {
               />
               <div>
                 <p className="text-sm text-gray-500">Ticket Price</p>
-                <p className="font-medium">£{ticket.event.price.toFixed(2)}</p>
+                <p className="font-medium">{formatCurrency(ticket.event.price)}</p>
               </div>
             </div>
           </div>

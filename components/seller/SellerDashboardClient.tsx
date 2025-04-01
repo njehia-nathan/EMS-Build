@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
+import { formatCurrency } from "@/lib/utils";
 
 interface SellerDashboardProps {
   dashboardData: {
@@ -29,11 +30,8 @@ export default function SellerDashboardClient({ dashboardData }: SellerDashboard
   const { stats, recentPayments, recentEvents } = dashboardData;
   
   // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount / 100); // Assuming amount is in cents
+  const formatAmount = (amount: number) => {
+    return formatCurrency(amount);
   };
   
   // Format date
@@ -110,7 +108,7 @@ export default function SellerDashboardClient({ dashboardData }: SellerDashboard
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Total Revenue</dt>
                   <dd>
-                    <div className="text-lg font-medium text-gray-900">{formatCurrency(stats.totalRevenue)}</div>
+                    <div className="text-lg font-medium text-gray-900">{formatAmount(stats.totalRevenue)}</div>
                   </dd>
                 </dl>
               </div>
@@ -136,7 +134,7 @@ export default function SellerDashboardClient({ dashboardData }: SellerDashboard
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Platform Fees</dt>
                   <dd>
-                    <div className="text-lg font-medium text-gray-900">{formatCurrency(stats.platformFees)}</div>
+                    <div className="text-lg font-medium text-gray-900">{formatAmount(stats.platformFees)}</div>
                   </dd>
                 </dl>
               </div>
@@ -162,7 +160,7 @@ export default function SellerDashboardClient({ dashboardData }: SellerDashboard
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Net Revenue</dt>
                   <dd>
-                    <div className="text-lg font-medium text-gray-900">{formatCurrency(stats.netRevenue)}</div>
+                    <div className="text-lg font-medium text-gray-900">{formatAmount(stats.netRevenue)}</div>
                   </dd>
                 </dl>
               </div>
@@ -207,7 +205,7 @@ export default function SellerDashboardClient({ dashboardData }: SellerDashboard
                       <div className="sm:flex">
                         <p className="flex items-center text-sm text-gray-500">
                           <DollarSign className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
-                          {formatCurrency(payment.amount)}
+                          {formatAmount(payment.amount)}
                         </p>
                       </div>
                       <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">

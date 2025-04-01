@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import Spinner from "./Spinner";
+import { formatCurrency } from "@/lib/utils";
 
 function TicketCard({ ticketId }: { ticketId: Id<"tickets"> }) {
   const ticket = useQuery(api.tickets.getTicketWithDetails, { ticketId });
@@ -107,7 +108,7 @@ function TicketCard({ ticketId }: { ticketId: Id<"tickets"> }) {
                   : "text-blue-600"
             }`}
           >
-            £{ticket.event.price.toFixed(2)}
+            {formatCurrency(ticket.event.price)}
           </span>
           <span className="text-gray-600 flex items-center">
             View Ticket <ArrowRight className="w-4 h-4 ml-1" />

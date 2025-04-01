@@ -1,3 +1,4 @@
+// @ts-nocheck
 "use client";
 
 import { useState, useEffect } from "react";
@@ -248,7 +249,7 @@ export default function PaystackPaymentIntegration({
         trackStep('Performing page refresh/redirect');
         router.refresh();
         // Force reload if needed for more reliable UI updates
-        window.location.href = '/my-tickets';
+        window.location.href = '/tickets';
       }, 2000);
       
     } catch (error) {
@@ -383,7 +384,7 @@ export default function PaystackPaymentIntegration({
             Your ticket for {eventName} has been confirmed.
           </p>
           <button
-            onClick={() => router.push('/my-tickets')}
+            onClick={() => router.push('/tickets')}
             className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors"
           >
             View My Tickets

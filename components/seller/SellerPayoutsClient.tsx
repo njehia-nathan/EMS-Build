@@ -97,7 +97,7 @@ export default function SellerPayoutsClient({ payouts, sellerId }: SellerPayouts
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Total Paid</dt>
                   <dd>
-                    <div className="text-lg font-medium text-gray-900">{formatCurrency(totalPaid, true)}</div>
+                    <div className="text-lg font-medium text-gray-900">{formatCurrency(totalPaid)}</div>
                   </dd>
                 </dl>
               </div>
@@ -116,7 +116,7 @@ export default function SellerPayoutsClient({ payouts, sellerId }: SellerPayouts
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Pending Payouts</dt>
                   <dd>
-                    <div className="text-lg font-medium text-gray-900">{formatCurrency(totalPending, true)}</div>
+                    <div className="text-lg font-medium text-gray-900">{formatCurrency(totalPending)}</div>
                   </dd>
                 </dl>
               </div>
@@ -162,7 +162,7 @@ export default function SellerPayoutsClient({ payouts, sellerId }: SellerPayouts
                       {payout.reference}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatCurrency(payout.amount, true)}
+                      {formatCurrency(payout.amount)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from "react";
-import { DollarSign, Calendar, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { DollarSign, Calendar, ArrowUpRight, ArrowDownRight, Tag, Download, Filter } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 
 interface Payment {
@@ -33,7 +33,7 @@ export default function SellerSalesClient({ payments }: SellerSalesClientProps) 
   
   // Format currency
   const formatAmount = (amount: number) => {
-    return formatCurrency(amount, true); // amount is in cents
+    return formatCurrency(amount);
   };
   
   // Apply filters

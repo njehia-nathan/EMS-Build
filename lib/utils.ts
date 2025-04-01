@@ -20,11 +20,11 @@ export function useStorageUrl(storageId: Id<"_storage"> | undefined) {
  * @returns Formatted currency string
  */
 export function formatCurrency(amount: number, inCents: boolean = false) {
-  const value = inCents ? amount / 100 : amount;
+  // For KES, we don't divide by 100 as amounts are already in whole shillings
   return new Intl.NumberFormat('en-KE', {
     style: 'currency',
     currency: 'KES',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(value);
+  }).format(amount);
 }

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import QRCode from "react-qr-code";
+import { formatCurrency } from "@/lib/utils";
 
 type Ticket = {
   _id: string;
@@ -144,7 +145,7 @@ export default function TicketDetailClient({ ticket, payment, error }: TicketDet
                         href={`/admin/payments/${payment._id}`}
                         className="text-blue-600 hover:text-blue-700 hover:underline"
                       >
-                        {payment.currency} {payment.amount.toLocaleString()}
+                        {formatCurrency(payment.amount)}
                       </Link>
                       <p className="text-sm text-gray-500">
                         {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)} via {payment.paymentMethod}
