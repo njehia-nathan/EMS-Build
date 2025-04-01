@@ -347,3 +347,14 @@ export const getPaymentById = query({
     return await ctx.db.get(args.paymentId);
   },
 });
+
+// Get payment by reference (for webhook processing)
+export const getPaymentByReference = query({
+  args: { reference: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("payments")
+      .filter((q) => q.eq(q.field("transactionId"), args.reference))
+      .first();
+  },
+});

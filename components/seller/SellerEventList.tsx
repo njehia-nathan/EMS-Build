@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Calendar, DollarSign, Tag, Users, Clock, Edit, Trash, Eye } from "lucide-react";
+import { formatCurrency } from "@/lib/utils";
 
 interface Event {
   _id: string;
@@ -26,11 +27,8 @@ export default function SellerEventList({ events }: SellerEventListProps) {
   const [filter, setFilter] = useState('all');
   
   // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount / 100); // Assuming amount is in cents
+  const formatPrice = (price: number) => {
+    return formatCurrency(price);
   };
   
   // Filter events based on status
@@ -121,7 +119,7 @@ export default function SellerEventList({ events }: SellerEventListProps) {
                     </p>
                     <p className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0 sm:ml-6">
                       <Tag className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
-                      {formatCurrency(event.price)}
+                      {formatPrice(event.price)}
                     </p>
                   </div>
                   <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
@@ -135,7 +133,7 @@ export default function SellerEventList({ events }: SellerEventListProps) {
                   <div className="sm:flex">
                     <p className="flex items-center text-sm text-gray-500">
                       <DollarSign className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
-                      Revenue: {formatCurrency(event.revenue)}
+                      Revenue: {formatPrice(event.revenue)}
                     </p>
                     {event.commissionRate !== undefined && (
                       <p className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0 sm:ml-6">

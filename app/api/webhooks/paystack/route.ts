@@ -45,22 +45,45 @@ export async function POST(request: NextRequest) {
     
     const convex = getConvexClient();
     
-    // Handle different webhook events
+    // Log webhook event for debugging
+    console.log(`Webhook received: ${event}`, {
+      reference: data.reference,
+      status: data.status,
+    });
+    
     switch (event) {
       case "charge.success":
-        // Process successful payment
-        await convex.mutation(api.payments.processWebhookSuccess, {
-          reference: data.reference,
-          transactionId: data.id,
-          status: "completed",
-          paymentDetails: {
-            gateway: "paystack",
+        try {
+          // First check if this payment has already been processed
+          const existingPayment = await convex.query(api.payments.getPaymentByReference, {
             reference: data.reference,
-            authorizationCode: data.authorization?.authorization_code,
-            lastFour: data.authorization?.last4,
-            cardType: data.authorization?.card_type,
+          });
+          
+          if (existingPayment && existingPayment.status === "completed") {
+            console.log(`Payment ${data.reference} already processed, skipping webhook processing`);
+            return new NextResponse("Payment already processed", { status: 200 });
           }
-        });
+          
+          // Process successful payment
+          await convex.mutation(api.payments.processWebhookSuccess, {
+            reference: data.reference,
+            transactionId: data.id,
+            status: "completed",
+            paymentDetails: {
+              gateway: "paystack",
+              reference: data.reference,
+              authorizationCode: data.authorization?.authorization_code,
+              lastFour: data.authorization?.last4,
+              cardType: data.authorization?.card_type,
+            }
+          });
+          
+          console.log(`Successfully processed webhook for payment ${data.reference}`);
+        } catch (error) {
+          console.error(`Error processing success webhook for ${data.reference}:`, error);
+          // Still return 200 to Paystack to prevent retries
+          return new NextResponse("Error processing webhook, but acknowledged", { status: 200 });
+        }
         break;
         
       case "charge.failed":
@@ -93,6 +116,7 @@ export async function POST(request: NextRequest) {
     return new NextResponse("Webhook processed", { status: 200 });
   } catch (error) {
     console.error("Webhook processing error:", error);
-    return new NextResponse("Error processing webhook", { status: 500 });
+    // Always return 200 to Paystack to prevent retries
+    return new NextResponse("Error processing webhook, but acknowledged", { status: 200 });
   }
 }

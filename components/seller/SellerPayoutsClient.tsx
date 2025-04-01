@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { DollarSign, Calendar, ArrowDownCircle, AlertCircle, CheckCircle, Clock } from "lucide-react";
+import { formatCurrency } from "@/lib/utils";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
 interface Payout {
   _id: string;
@@ -17,38 +20,48 @@ interface Payout {
 
 interface SellerPayoutsClientProps {
   payouts: Payout[];
+  sellerId: string;
 }
 
-export default function SellerPayoutsClient({ payouts }: SellerPayoutsClientProps) {
+export default function SellerPayoutsClient({ payouts, sellerId }: SellerPayoutsClientProps) {
   const [statusFilter, setStatusFilter] = useState('all');
   
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount / 100); // Assuming amount is in cents
-  };
+  // Get real-time pending payments data
+  const realtimePendingPayments = useQuery(api.seller.getPendingPayouts, { 
+    sellerId 
+  }) || [];
   
   // Format date
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleDateString();
   };
   
+  // Combine server-rendered payouts with real-time pending payments
+  const allPayouts = [...payouts];
+  
+  // If we have real-time pending payments data, use it instead of the server-rendered pending payments
+  if (realtimePendingPayments.length > 0) {
+    // Filter out any server-rendered pending payouts
+    const nonPendingPayouts = payouts.filter(p => p.status !== 'pending');
+    
+    // Combine with real-time pending payouts
+    allPayouts.splice(0, allPayouts.length, ...nonPendingPayouts, ...realtimePendingPayments);
+  }
+  
   // Apply filters
   const filteredPayouts = statusFilter === 'all' 
-    ? payouts 
-    : payouts.filter(payout => payout.status === statusFilter);
+    ? allPayouts 
+    : allPayouts.filter(payout => payout.status === statusFilter);
   
   // Sort payouts by date (newest first)
   const sortedPayouts = [...filteredPayouts].sort((a, b) => b.createdAt - a.createdAt);
   
   // Calculate totals
-  const totalPaid = payouts
+  const totalPaid = allPayouts
     .filter(p => p.status === 'completed')
     .reduce((sum, p) => sum + p.amount, 0);
   
-  const totalPending = payouts
+  const totalPending = allPayouts
     .filter(p => p.status === 'pending' || p.status === 'processing')
     .reduce((sum, p) => sum + p.amount, 0);
   
@@ -84,7 +97,7 @@ export default function SellerPayoutsClient({ payouts }: SellerPayoutsClientProp
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Total Paid</dt>
                   <dd>
-                    <div className="text-lg font-medium text-gray-900">{formatCurrency(totalPaid)}</div>
+                    <div className="text-lg font-medium text-gray-900">{formatCurrency(totalPaid, true)}</div>
                   </dd>
                 </dl>
               </div>
@@ -103,7 +116,7 @@ export default function SellerPayoutsClient({ payouts }: SellerPayoutsClientProp
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Pending Payouts</dt>
                   <dd>
-                    <div className="text-lg font-medium text-gray-900">{formatCurrency(totalPending)}</div>
+                    <div className="text-lg font-medium text-gray-900">{formatCurrency(totalPending, true)}</div>
                   </dd>
                 </dl>
               </div>
@@ -149,7 +162,7 @@ export default function SellerPayoutsClient({ payouts }: SellerPayoutsClientProp
                       {payout.reference}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatCurrency(payout.amount)}
+                      {formatCurrency(payout.amount, true)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from "react";
-import { DollarSign, Calendar, Tag, Download, Filter } from "lucide-react";
+import { DollarSign, Calendar, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { formatCurrency } from "@/lib/utils";
 
 interface Payment {
   _id: string;
@@ -25,17 +26,14 @@ export default function SellerSalesClient({ payments }: SellerSalesClientProps) 
   const [timeFilter, setTimeFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
   
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount / 100); // Assuming amount is in cents
-  };
-  
   // Format date
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleDateString();
+  };
+  
+  // Format currency
+  const formatAmount = (amount: number) => {
+    return formatCurrency(amount, true); // amount is in cents
   };
   
   // Apply filters
@@ -99,9 +97,9 @@ export default function SellerSalesClient({ payments }: SellerSalesClientProps) 
       payment.eventName,
       payment.userName,
       payment.userEmail,
-      (payment.amount / 100).toFixed(2),
-      ((payment.platformFee || 0) / 100).toFixed(2),
-      ((payment.sellerAmount || payment.amount - (payment.platformFee || 0)) / 100).toFixed(2),
+      formatAmount(payment.amount),
+      payment.platformFee ? formatAmount(payment.platformFee) : '-',
+      payment.sellerAmount ? formatAmount(payment.sellerAmount) : formatAmount(payment.amount - (payment.platformFee || 0)),
       payment.status,
       payment.payoutStatus || 'N/A'
     ]);
@@ -196,7 +194,7 @@ export default function SellerSalesClient({ payments }: SellerSalesClientProps) 
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Total Revenue</dt>
                   <dd>
-                    <div className="text-lg font-medium text-gray-900">{formatCurrency(totalRevenue)}</div>
+                    <div className="text-lg font-medium text-gray-900">{formatAmount(totalRevenue)}</div>
                   </dd>
                 </dl>
               </div>
@@ -215,7 +213,7 @@ export default function SellerSalesClient({ payments }: SellerSalesClientProps) 
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Platform Fees</dt>
                   <dd>
-                    <div className="text-lg font-medium text-gray-900">{formatCurrency(totalFees)}</div>
+                    <div className="text-lg font-medium text-gray-900">{formatAmount(totalFees)}</div>
                   </dd>
                 </dl>
               </div>
@@ -234,7 +232,7 @@ export default function SellerSalesClient({ payments }: SellerSalesClientProps) 
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Net Revenue</dt>
                   <dd>
-                    <div className="text-lg font-medium text-gray-900">{formatCurrency(netRevenue)}</div>
+                    <div className="text-lg font-medium text-gray-900">{formatAmount(netRevenue)}</div>
                   </dd>
                 </dl>
               </div>
@@ -292,15 +290,15 @@ export default function SellerSalesClient({ payments }: SellerSalesClientProps) 
                       {payment.userName}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatCurrency(payment.amount)}
+                      {formatAmount(payment.amount)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {payment.platformFee ? formatCurrency(payment.platformFee) : '-'}
+                      {payment.platformFee ? formatAmount(payment.platformFee) : '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {payment.sellerAmount 
-                        ? formatCurrency(payment.sellerAmount) 
-                        : formatCurrency(payment.amount - (payment.platformFee || 0))}
+                        ? formatAmount(payment.sellerAmount) 
+                        : formatAmount(payment.amount - (payment.platformFee || 0))}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 

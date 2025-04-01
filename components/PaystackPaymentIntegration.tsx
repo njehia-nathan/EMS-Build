@@ -6,8 +6,12 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { toast } from "sonner";
-import { CreditCard, CheckCircle, AlertCircle, Phone } from "lucide-react";
+import { CreditCard, CheckCircle, AlertCircle, Phone, Bug } from "lucide-react";
 import { usePaystackPayment } from "react-paystack";
+import { formatCurrency } from "@/lib/utils";
+
+// Debug flag - set to true to enable simulation mode
+const SIMULATE_PAYMENT_SUCCESS = true;
 
 interface PaystackPaymentProps {
   eventId: Id<"events">;
@@ -32,6 +36,7 @@ export default function PaystackPaymentIntegration({
   const [reference, setReference] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'mobile_money'>('mobile_money');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [isDebugMode, setIsDebugMode] = useState(SIMULATE_PAYMENT_SUCCESS);
   const [processingSteps, setProcessingSteps] = useState<string[]>([]);
   const [processingFailed, setProcessingFailed] = useState(false);
   const [processingErrorMessage, setProcessingErrorMessage] = useState('');
@@ -65,16 +70,17 @@ export default function PaystackPaymentIntegration({
   const handleSuccess = async (reference: any) => {
     // Create a retry function for database operations
     const retryOperation = async (operation: () => Promise<any>, operationName: string, maxRetries = 3) => {
-      let lastError;
+      let lastError: unknown = null;
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
           trackStep(`${operationName} - Attempt ${attempt}`);
           const result = await operation();
           trackStep(`${operationName} - Success`);
           return result;
-        } catch (error) {
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           console.error(`${operationName} - Attempt ${attempt} failed:`, error);
-          trackStep(`${operationName} - Attempt ${attempt} failed: ${error.message || 'Unknown error'}`);
+          trackStep(`${operationName} - Attempt ${attempt} failed: ${errorMessage}`);
           lastError = error;
           // Wait before retrying (exponential backoff)
           if (attempt < maxRetries) {
@@ -83,12 +89,36 @@ export default function PaystackPaymentIntegration({
         }
       }
       trackStep(`${operationName} - All attempts failed`);
-      throw lastError;
+      if (lastError) {
+        throw lastError;
+      }
+      throw new Error(`${operationName} failed after ${maxRetries} attempts with no specific error`);
     };
     
     try {
       setIsLoading(true);
-      trackStep('Payment marked as successful by Paystack');
+      
+      // Check if we're in simulation mode
+      if (isDebugMode && !reference.actualPayment) {
+        trackStep('SIMULATION MODE: Simulating successful payment');
+        // Create a simulated payment response
+        reference = {
+          ...reference,
+          actualPayment: false,
+          status: "success",
+          message: "Simulated payment successful",
+          transaction: reference.reference || `sim-${Date.now()}`,
+          reference: reference.reference || `sim-${Date.now()}`,
+          authorization: {
+            authorization_code: `sim_auth_${Date.now()}`,
+            card_type: "Simulated Card",
+            last4: "0000",
+          }
+        };
+      } else {
+        trackStep('Payment marked as successful by Paystack');
+      }
+      
       console.log("Payment successful with reference:", reference);
       
       // Properly handle the reference in different formats
@@ -134,6 +164,9 @@ export default function PaystackPaymentIntegration({
       const cardType = reference?.authorization?.card_type || '';
       const lastFour = reference?.authorization?.last4 || '';
       
+      // Extract revenue amount - use the actual amount from the response if available
+      const revenueAmount = reference?.amount ? (reference.amount / 100) : ticketPrice;
+      
       // Create a sanitized version of the payment response for storage
       // Remove any circular references that might cause JSON.stringify to fail
       let paymentResponseStr;
@@ -154,6 +187,9 @@ export default function PaystackPaymentIntegration({
         trackStep('Created simplified payment response data');
       }
       
+      // Log the payment response for debugging
+      console.log("Payment response data:", paymentResponseStr);
+      
       const paymentResult = await retryOperation(() => createPayment({
         userId,
         eventId,
@@ -169,7 +205,6 @@ export default function PaystackPaymentIntegration({
           authorizationCode,
           cardType,
           lastFour,
-          paymentResponse: paymentResponseStr,
         },
         sellerId: event?.userId || userId, // Use event creator as seller
       }), 'Payment Record Creation');
@@ -190,10 +225,11 @@ export default function PaystackPaymentIntegration({
         }), 'Commission Processing');
         console.log("Commission processed:", commissionResult);
         trackStep('Commission processed successfully');
-      } catch (commissionError) {
+      } catch (commissionError: unknown) {
         // Don't fail the whole transaction if commission processing fails
+        const errorMessage = commissionError instanceof Error ? commissionError.message : 'Unknown error';
         console.error("Error processing commission:", commissionError);
-        trackStep(`Commission processing error: ${commissionError.message || 'Unknown error'}`);
+        trackStep(`Commission processing error: ${errorMessage}`);
         toast.error("Commission processing error", {
           description: "Your ticket was purchased but we had trouble calculating the seller commission.",
         });
@@ -220,8 +256,14 @@ export default function PaystackPaymentIntegration({
       setProcessingFailed(true);
       setProcessingErrorMessage(error.message || 'Unknown error');
       trackStep(`Payment processing failed: ${error.message || 'Unknown error'}`);
+      
+      // Get a safe reference string for the error message
+      const safeReference = typeof reference === 'string' 
+        ? reference 
+        : (reference?.reference || reference?.trxref || reference?.transaction || reference?.id || 'unknown');
+      
       toast.error("Payment processing error", {
-        description: "Your payment was received but we encountered an error processing it. Please contact support with reference: " + reference.reference,
+        description: `Your payment was received but we encountered an error processing it. Please contact support with reference: ${safeReference}`,
       });
     } finally {
       setIsLoading(false);
@@ -324,10 +366,7 @@ export default function PaystackPaymentIntegration({
   
   // Format price for display
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'KES',
-    }).format(price);
+    return formatCurrency(price);
   };
   
   return (
@@ -382,6 +421,32 @@ export default function PaystackPaymentIntegration({
               </p>
             </div>
           </div>
+          
+          {/* Debug mode toggle */}
+          {process.env.NODE_ENV !== 'production' && (
+            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Bug className="w-4 h-4 text-yellow-600" />
+                  <span className="text-sm font-medium text-yellow-800">Debug Mode</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={isDebugMode} 
+                    onChange={() => setIsDebugMode(!isDebugMode)} 
+                    className="sr-only peer" 
+                  />
+                  <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
+              {isDebugMode && (
+                <p className="mt-2 text-xs text-yellow-700">
+                  Payments will be simulated without actual Paystack charges. Tickets will still be created.
+                </p>
+              )}
+            </div>
+          )}
           
           <div className="grid grid-cols-2 gap-4 mb-6">
             <button
@@ -509,6 +574,21 @@ export default function PaystackPaymentIntegration({
                   trackStep('Paystack payment modal closed by user');
                   handleClose();
                 };
+                
+                // If in debug mode, simulate payment success without calling Paystack
+                if (isDebugMode) {
+                  clearTimeout(paymentTimeout);
+                  trackStep('Debug mode: Simulating payment without Paystack API call');
+                  
+                  // Short delay to simulate payment processing
+                  setTimeout(() => {
+                    onSuccess({
+                      reference: reference,
+                      simulated: true
+                    });
+                  }, 1500);
+                  return;
+                }
                 
                 // @ts-ignore - types from react-paystack are not perfect
                 initializePayment(onSuccess, onClose);
