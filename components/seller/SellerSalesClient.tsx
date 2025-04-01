@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from "react";
-import { DollarSign, Calendar, ArrowUpRight, ArrowDownRight, Tag, Download, Filter } from "lucide-react";
+import { DollarSign, Tag, Download, Filter } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 
 interface Payment {

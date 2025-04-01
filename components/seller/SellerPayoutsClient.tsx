@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from "react";
-import { DollarSign, Calendar, ArrowDownCircle, AlertCircle, CheckCircle, Clock } from "lucide-react";
+import { ArrowDownCircle, AlertCircle, CheckCircle, Clock } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";

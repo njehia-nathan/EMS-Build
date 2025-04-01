@@ -71,7 +71,7 @@ export default function SalesOverview({ data, type }: SalesOverviewProps) {
         callbacks: {
           label: function(context) {
             let label = context.label || "";
-            let value = context.raw as number;
+            const value = context.raw as number;
             
             if (label) {
               label += ": ";

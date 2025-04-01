@@ -16,10 +16,9 @@ export function useStorageUrl(storageId: Id<"_storage"> | undefined) {
 /**
  * Format a number as KES currency
  * @param amount The amount to format
- * @param inCents Whether the amount is in cents (default: false)
  * @returns Formatted currency string
  */
-export function formatCurrency(amount: number, inCents: boolean = false) {
+export function formatCurrency(amount: number) {
   // For KES, we don't divide by 100 as amounts are already in whole shillings
   return new Intl.NumberFormat('en-KE', {
     style: 'currency',
