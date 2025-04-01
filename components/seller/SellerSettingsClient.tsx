@@ -201,7 +201,7 @@ export default function SellerSettingsClient({ user }: SellerSettingsClientProps
                 <div className="sm:col-span-2 border-t border-gray-200 pt-5">
                   <h4 className="text-md font-medium text-gray-900">Create Paystack Recipient</h4>
                   <p className="mt-1 text-sm text-gray-500 mb-4">
-                    If you don't have a recipient code, you can create one by entering your bank details below.
+                    If you don&apos;t have a recipient code, you can create one by entering your bank details below.
                   </p>
                 </div>
                 

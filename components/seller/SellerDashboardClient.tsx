@@ -3,7 +3,6 @@
 import { 
   Calendar, 
   DollarSign, 
-  Users, 
   TrendingUp,
   Clock,
   Tag

@@ -1,3 +1,4 @@
+// 
 // components/PurchaseTicket.tsx (updated)
 "use client";
 
@@ -8,7 +9,6 @@ import { useQuery } from "convex/react";
 import { Ticket } from "lucide-react";
 import { useEffect, useState } from "react";
 import ReleaseTicket from "./ReleaseTicket";
-import { toast } from "sonner";
 import PaystackPayment from "./PaystackPayment"; // New component
 
 function PurchaseTicket({ eventId }: { eventId: Id<"events"> }) {

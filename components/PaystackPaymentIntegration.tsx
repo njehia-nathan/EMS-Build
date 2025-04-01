@@ -2,12 +2,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { toast } from "sonner";
-import { CreditCard, CheckCircle, AlertCircle, Phone, Bug } from "lucide-react";
+import { CreditCard, CheckCircle, AlertCircle, Bug } from "lucide-react";
 import { usePaystackPayment } from "react-paystack";
 import { formatCurrency } from "@/lib/utils";
 
@@ -31,7 +30,6 @@ export default function PaystackPaymentIntegration({
   userId,
   waitingListId,
 }: PaystackPaymentIntegrationProps) {
-  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -215,7 +213,7 @@ export default function PaystackPaymentIntegration({
     } finally {
       setIsLoading(false);
     }
-  }, [createTicket, createPayment, removeFromWaitingList, eventId, userId, waitingListId, ticketPrice, event?.userId]);
+  }, [createTicket, createPayment, removeFromWaitingList, eventId, userId, waitingListId, ticketPrice, event?.userId, retryOperation]);
   
   // Define close handler
   const handleClose = () => {
@@ -359,7 +357,7 @@ export default function PaystackPaymentIntegration({
                         if (SIMULATE_PAYMENT_SUCCESS && debugMode) {
                           simulatePaymentSuccess();
                         } else {
-                          // @ts-ignore - types from react-paystack are not perfect
+                          // @ts-expect-error - types from react-paystack are not perfect
                           initializePayment(handleSuccess, handleClose);
                         }
                       } catch (error) {

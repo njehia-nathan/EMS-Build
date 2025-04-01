@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Eye, User, CheckCircle, XCircle } from "lucide-react";
+import { Eye, CheckCircle, XCircle } from "lucide-react";
 
 type Ticket = {
   _id: string;
@@ -30,9 +30,11 @@ type Ticket = {
   };
 };
 
+type SortKey = keyof Ticket | "event.name" | "user.name" | "event.eventDate";
+
 export default function TicketsTable({ tickets }: { tickets: Ticket[] }) {
   const router = useRouter();
-  const [sortBy, setSortBy] = useState<keyof Ticket | "event.name" | "user.name">("purchasedAt");
+  const [sortBy, setSortBy] = useState<SortKey>("purchasedAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   
   const sortedTickets = [...tickets].sort((a, b) => {
@@ -55,7 +57,7 @@ export default function TicketsTable({ tickets }: { tickets: Ticket[] }) {
     }
   });
   
-  const handleSort = (column: typeof sortBy) => {
+  const handleSort = (column: SortKey) => {
     if (sortBy === column) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
     } else {

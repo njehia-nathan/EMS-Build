@@ -122,7 +122,7 @@ export default function SecuritySettings({ settings }: SecuritySettingsProps) {
               <div>
                 <h4 className="font-medium">Admin User Management</h4>
                 <p className="text-sm mt-1">
-                  Admin user management is available in the "Admin Users" tab.
+                  Admin user management is available in the &quot;Admin Users&quot; tab.
                 </p>
               </div>
             </div>

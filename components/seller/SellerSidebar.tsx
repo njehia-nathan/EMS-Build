@@ -7,7 +7,6 @@ import {
   Calendar, 
   DollarSign, 
   Settings, 
-  Users, 
   FileText,
   PlusCircle
 } from "lucide-react";

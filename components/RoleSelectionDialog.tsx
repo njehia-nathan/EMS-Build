@@ -72,17 +72,8 @@ export default function RoleSelectionDialog() {
   };
   
   // Secret admin trigger - clicking 10 times in a specific area
-  const [adminClickCount, setAdminClickCount] = useState(0);
-  
   const handleSecretAdminClick = () => {
-    setAdminClickCount(prev => {
-      const newCount = prev + 1;
-      if (newCount >= 10) {
-        setShowAdminInput(true);
-        return 0;
-      }
-      return newCount;
-    });
+    setShowAdminInput(true);
   };
   
   if (!isOpen) return null;
